@@ -55,6 +55,27 @@ test("resolveSessionLog(fresh) reuses an existing empty log instead of piling up
   }
 });
 
+test("resolveSessionLog(fresh) continues the story log after auto-rotate cleared the SDK id", () => {
+  // ADR-0040/0041: auto-rotate drops the persisted SDK session id, so the next
+  // /session/start resolves with resuming=false even though the campaign has a
+  // story in progress. It must continue the existing log-with-turns, not fork a
+  // fresh empty log — otherwise the active session and the /state display diverge
+  // and moment illustrate/animate report "no turn N in the active session".
+  const dir = tempCampaign();
+  try {
+    const storyLog = startSessionLog(dir);
+    appendTurnTranscript(dir, storyLog, "look around", "You see the inn.");
+
+    // resuming=false (persisted SDK id was cleared by rotation) must still land
+    // on the story log, and must not create a second .md.
+    assert.equal(resolveSessionLog(dir, false), storyLog);
+    const mdCount = fs.readdirSync(path.join(dir, "session-log")).filter((f) => f.endsWith(".md")).length;
+    assert.equal(mdCount, 1);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("readStateSnapshot surfaces prior turns even with no active session log passed (#49)", () => {
   const dir = tempCampaign();
   try {
