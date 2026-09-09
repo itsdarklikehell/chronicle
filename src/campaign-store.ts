@@ -906,21 +906,26 @@ function latestSessionLogWithTurns(campaignDir: string): string | undefined {
  * empty files — the model kept writing to whichever file it remembered
  * from earlier in the resumed conversation, not the newest one. */
 export function resolveSessionLog(campaignDir: string, resuming: boolean): string {
-  if (resuming) {
-    // Continue the existing story: append to the log that actually holds
-    // turns, not merely the newest .md — a stray empty log from an earlier
-    // start would otherwise become the "current" log and hide the history (#49).
-    const withTurns = latestSessionLogWithTurns(campaignDir);
-    if (withTurns) return withTurns;
-    const existing = latestSessionLogPath(campaignDir);
-    if (existing) return existing;
-  } else {
-    // Starting fresh: if the newest log is still empty (a prior session/start
-    // that never took a turn), reuse it rather than piling up another empty
-    // file — the empty-.md accumulation seen in real campaign data (#49).
-    const existing = latestSessionLogPath(campaignDir);
-    if (existing && readTurnTranscript(campaignDir, existing).length === 0) return existing;
-  }
+  // Continue the existing story whenever the campaign already has one — append
+  // to the log that actually holds turns, not merely the newest .md — regardless
+  // of whether the SDK session is being resumed. ADR-0040/0041 session rotation
+  // deliberately drops the persisted SDK session id (so `resuming` is false on the
+  // next /session/start) while keeping the on-disk transcript continuous. Forking
+  // a fresh log here on that non-resume start stranded the story's turns in the
+  // old log: the /state view falls back to the log-with-turns for DISPLAY, but the
+  // active session pointed at the new empty log, so the moment seams
+  // (illustrate/animate) reported "no turn N in the active session" for turns the
+  // player could plainly see. Keying continuity off the log-with-turns rather than
+  // the `resuming` flag keeps both in sync. The `resuming` parameter is retained
+  // for the call sites and intent, but no longer changes which log we land on.
+  void resuming;
+  const withTurns = latestSessionLogWithTurns(campaignDir);
+  if (withTurns) return withTurns;
+  // No turns yet (a genuinely new campaign, or only empty logs). Reuse the newest
+  // empty log rather than piling up another empty file — the empty-.md
+  // accumulation seen in real campaign data (#49).
+  const existing = latestSessionLogPath(campaignDir);
+  if (existing) return existing;
   return startSessionLog(campaignDir);
 }
 
