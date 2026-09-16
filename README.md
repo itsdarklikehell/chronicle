@@ -89,21 +89,4 @@ Master set up. You've got this. 🕯️
 
 ## 🎥 Gource Visualization
 
-De ontwikkelhistorie van dit project in een film:
-
-<video src="https://raw.githubusercontent.com/itsdarklikehell/chronicle/main/gource.mp4" controls width="100%"></video>
-
-*De video wordt automatisch gegenereerd door de [Gource workflow](.github/workflows/gource.yml) bij elke push.*
-
-Lokale video genereren met de gource-action:
-```bash
-# Gource rendering in CI (nbprojekt/gource-action@v1) levert ./gource/gource.mp4
-# Voor lokale ontwikkeling: render met Xvfb
-Xvfb :99 -screen 0 1024x768x24 &
-export DISPLAY=:99
-gource --output-ppm-stream gource.ppm --stop-at-end --key -800x600 \
-  --highlight-users --filename-time 3 --output-framerate 25 \
-  -s 0.6 --multi-sampling --auto-skip-seconds 0.1 \
-  --hide mouse,progress .
-ffmpeg -y -f image2pipe -r 25 -i gource.ppm -c:v libx264 -pix_fmt yuv420p chronicle-gource.mp4
-```
+De ontwikkelhistorie van dit project wordt automatisch gegenereerd door de [Gource workflow](.github/workflows/gource.yml) bij elke push — rendered via [nbprojekt/gource-action@v1.3.0](https://github.com/marketplace/actions/gource-action) in 1080p. Het video-artifact is 30 dagen beschikbaar via de workflow-run (Actions → gource-visualization).
