@@ -91,18 +91,19 @@ Master set up. You've got this. 🕯️
 
 De ontwikkelhistorie van dit project in een film:
 
-<video src="https://raw.githubusercontent.com/itsdarklikehell/chronicle/master/gource.mp4" controls width="100%"></video>
+<video src="https://raw.githubusercontent.com/itsdarklikehell/chronicle/main/gource.mp4" controls width="100%"></video>
 
 *De video wordt automatisch gegenereerd door de [Gource workflow](.github/workflows/gource.yml) bij elke push.*
 
-Lokale video genereren:
+Lokale video genereren met de gource-action:
 ```bash
-gource --max-files 1000 --key -800x600 \
+# Gource rendering in CI (nbprojekt/gource-action@v1) levert ./gource/gource.mp4
+# Voor lokale ontwikkeling: render met Xvfb
+Xvfb :99 -screen 0 1024x768x24 &
+export DISPLAY=:99
+gource --output-ppm-stream gource.ppm --stop-at-end --key -800x600 \
   --highlight-users --filename-time 3 --output-framerate 25 \
   -s 0.6 --multi-sampling --auto-skip-seconds 0.1 \
-  --stop-at-end --hide mouse,progress -o gource.ppm
-
-ffmpeg -y -r 15 -f image2pipe -vcodec ppm -i gource.ppm \
-  -vcodec libx264 -preset medium -pix_fmt yuv420p \
-  -crf 1 -threads 0 -bf 0 gource.mp4
+  --hide mouse,progress .
+ffmpeg -y -f image2pipe -r 25 -i gource.ppm -c:v libx264 -pix_fmt yuv420p chronicle-gource.mp4
 ```
