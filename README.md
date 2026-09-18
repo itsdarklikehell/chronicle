@@ -90,3 +90,5 @@ Master set up. You've got this. 🕯️
 ## 🎥 Gource Visualization
 
 De ontwikkelhistorie van dit project wordt automatisch gegenereerd door de [Gource workflow](.github/workflows/gource.yml) bij elke push — rendered via [nbprojekt/gource-action@v1.3.0](https://github.com/marketplace/actions/gource-action) in 1080p. Het video-artifact is 30 dagen beschikbaar via de workflow-run (Actions → gource-visualization).
+
+<video src="https://raw.githubusercontent.com/itsdarklikehell/chronicle/master/gource.mp4" controls width="100%"></video>
