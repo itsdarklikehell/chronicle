@@ -63,6 +63,14 @@ settings-vs-secrets split, and how to point image generation at a remote GPU hos
 - ⚙️ **[Configuration](docs/configuration.md)** — settings, secrets, and remote GPU hosts
 - 🆘 **[Help & troubleshooting](docs/user-guide/help-and-troubleshooting.md)** — calm fixes for common hiccups
 
+### For developers
+
+- 📐 **[Developer & Architecture Guide](docs/developer-guide.md)** — how Chronicle works under the hood
+- 🏗️ **[ADRs](docs/adr/)** — architecturally significant decisions, numbered sequentially
+- 🧪 **Run tests:** `npm run test:unit` (291 tests) · `npm run typecheck` (TypeScript strict)
+- 🔧 **Start dev server:** `npm run setup && npm start` (serves API + built UI on port 4317)
+- 🛑 **Config-gated CI:** fleet-wide reusable workflows live in `itsdarklikehell/ci-templates`
+
 ## License
 
 Chronicle is **[MIT licensed](LICENSE)** — free and open source. Take it, fork
