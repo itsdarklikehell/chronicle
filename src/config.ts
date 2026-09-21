@@ -2,6 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+/** Like structuredClone but typed for record-shaped config objects. Uses JSON
+ * round-trip under the hood so it stays cheap for config-sized objects, and
+ * returns a plain Record<string, unknown> so `deepMerge` never sees frozen
+ * or exotic objects.
+ */
+function cloneRecord(obj: Record<string, unknown>): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(obj));
+}
+
 /**
  * File-based configuration (ADR-0033). Two JSON files at the repo root, each with a
  * committed `*.example.json` sibling:
@@ -165,13 +174,13 @@ export function loadConfigFrom(dir: string): LoadedConfig {
   const exampleFile = configFile ? undefined : readJsonIfPresent(path.join(dir, "config.example.json"));
   const rawConfig = configFile ?? exampleFile ?? {};
   const config = deepFreeze(
-    deepMerge(structuredClone(CONFIG_DEFAULTS) as unknown as Record<string, unknown>, rawConfig)
-  ) as unknown as ChronicleConfig;
+    deepMerge(cloneRecord(CONFIG_DEFAULTS as unknown as Record<string, unknown>), rawConfig) as unknown
+  ) as ChronicleConfig;
 
   const rawSecrets = readJsonIfPresent(path.join(dir, "secrets.json"));
   const secrets = deepFreeze(
-    deepMerge(structuredClone(SECRETS_DEFAULTS) as unknown as Record<string, unknown>, rawSecrets ?? {})
-  ) as unknown as ChronicleSecrets;
+    deepMerge(cloneRecord(SECRETS_DEFAULTS as unknown as Record<string, unknown>), rawSecrets ?? {}) as unknown
+  ) as ChronicleSecrets;
 
   return {
     config,
