@@ -173,6 +173,16 @@ export function loadConfigFrom(dir: string): LoadedConfig {
   const configFile = readJsonIfPresent(path.join(dir, "config.json"));
   const exampleFile = configFile ? undefined : readJsonIfPresent(path.join(dir, "config.example.json"));
   const rawConfig = configFile ?? exampleFile ?? {};
+
+  // Warn about unknown top-level keys so a mistyped key (e.g. "servert" instead of
+  // "server") does not silently disappear into the merge void.
+  const knownTopLevelKeys = new Set(Object.keys(CONFIG_DEFAULTS));
+  for (const key of Object.keys(rawConfig)) {
+    if (!knownTopLevelKeys.has(key)) {
+      console.warn(`[config] unknown top-level key "${key}" in config file — ignored.`);
+    }
+  }
+
   const config = deepFreeze(
     deepMerge(cloneRecord(CONFIG_DEFAULTS as unknown as Record<string, unknown>), rawConfig) as unknown
   ) as ChronicleConfig;

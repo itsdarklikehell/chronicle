@@ -90,7 +90,25 @@ test("loadConfigFrom: nested defaults are deep-merged (not replaced) by partial 
     assert.equal(config.defaults.model, CONFIG_DEFAULTS.defaults.model); // sibling untouched
     // The result must be frozen so accidental mutations throw.
     assert.throws(() => { (config.defaults as Record<string, unknown>).model = "fake"; }, TypeError);
-  });
+    });
+
+    test("loadConfigFrom: unknown top-level keys do not break loading (warn-only defensive behaviour)", () => {
+    withTempDir((dir) => {
+      // A typo like "servert" or an accidental extra key should not crash or corrupt the load.
+      write(dir, "config.json", {
+        server: { port: 9999 },
+        servert: "this typos in the real key and should be ignored",
+        defaults: { imageProvider: "local" },
+      });
+      const { config, sources } = loadConfigFrom(dir);
+      assert.equal(sources.config, "config.json");
+      assert.equal(config.server.port, 9999);
+      assert.equal(config.server.host, CONFIG_DEFAULTS.server.host);
+      assert.equal(config.defaults.imageProvider, "local");
+      // The unknown key must not have been merged into the config object.
+      assert.equal((config as Record<string, unknown>).servert, undefined);
+    });
+    });
 });
 
 test("loadConfigFrom: a malformed config.json is ignored, not fatal", () => {
