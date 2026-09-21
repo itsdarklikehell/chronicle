@@ -75,6 +75,24 @@ test("loadConfigFrom: reads secrets.json when present", () => {
   });
 });
 
+test("loadConfigFrom: nested defaults are deep-merged (not replaced) by partial user config", () => {
+  withTempDir((dir) => {
+    // User sets only one nested field; siblings must keep their defaults.
+    write(dir, "config.json", {
+      server: { host: "0.0.0.0" },
+      defaults: { imageProvider: "local", artStyle: "noir" },
+    });
+    const { config } = loadConfigFrom(dir);
+    assert.equal(config.server.host, "0.0.0.0");
+    assert.equal(config.server.port, CONFIG_DEFAULTS.server.port); // sibling untouched
+    assert.equal(config.defaults.imageProvider, "local");
+    assert.equal(config.defaults.artStyle, "noir");
+    assert.equal(config.defaults.model, CONFIG_DEFAULTS.defaults.model); // sibling untouched
+    // The result must be frozen so accidental mutations throw.
+    assert.throws(() => { (config.defaults as Record<string, unknown>).model = "fake"; }, TypeError);
+  });
+});
+
 test("loadConfigFrom: a malformed config.json is ignored, not fatal", () => {
   withTempDir((dir) => {
     fs.writeFileSync(path.join(dir, "config.json"), "{ not valid json ,,, }");
