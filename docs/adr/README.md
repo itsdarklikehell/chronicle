@@ -15,7 +15,7 @@ record what was actually decided and built.
 | If you're working on… | Read |
 |---|---|
 | Core engine & state files | 0001, 0007, 0016, 0039 |
-| Agent permissions & safety | 0002, 0008 |
+| Agent permissions & safety | 0002, 0008, 0042 |
 | Rules fidelity (SRD, dice) | 0006, 0011 |
 | Campaign lifecycle | 0010, 0012, 0013, 0014 |
 | DM-engine backends (Claude/Grok) | 0018, 0025 |
@@ -72,6 +72,7 @@ record what was actually decided and built.
 | 0039 | [Bounded, rewritten-each-turn "Current Situation" summary](0039-bounded-current-situation-summary.md) | Accepted |
 | 0040 | [Session rotation — fresh-session catch-up to cure long-campaign drift](0040-session-rotation.md) | Accepted |
 | 0041 | [Automatic session rotation + always-on local service](0041-auto-session-rotation-and-local-service.md) | Accepted |
+| 0042 | [Lock down what Grok and Claude can do on the host](0042-lock-down-grok-and-claude.md) | Accepted |
 
 ## Conventions
 

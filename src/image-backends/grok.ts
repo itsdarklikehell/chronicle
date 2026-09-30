@@ -12,6 +12,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { sanitizeImagePrompt, saveGeneratedImage } from "../image-generator.js";
 import type { ImageBackend, ImageBackendArgs, ImageGenResult } from "./types.js";
+import { disableInheritedServers, grokGenerationArgs, grokLockdownEnv } from "../grok-lockdown.js";
 
 const execFileAsync = promisify(execFile);
 export type GrokExec = typeof execFileAsync;
@@ -170,6 +171,7 @@ export async function generateGrokImage(
   // Marks which images belong to THIS call for the timeout-salvage path below.
   const startedAt = Date.now();
   try {
+    await disableInheritedServers(workDir);
     let stdout: string | undefined;
     let timedOut = false;
     try {
@@ -186,20 +188,12 @@ export async function generateGrokImage(
           "--no-plan",
           "--no-subagents",
           "--disable-web-search",
-          // Defense-in-depth: even in the temp dir, forbid the tools Grok would
-          // use to explore/mutate a filesystem or repo, so it can only generate.
-          "--deny",
-          "Bash",
-          "--deny",
-          "Shell",
-          "--deny",
-          "Terminal",
-          "--deny",
-          "Edit",
-          "--deny",
-          "Write",
+          // ADR-0042: the scene description is untrusted (the DM model writes it from
+          // player text), and grok is a coding agent — so remove its other tools, refuse
+          // anything not allowed, and give it none of the host's own config.
+          ...grokGenerationArgs(workDir),
         ],
-        { timeout: GROK_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 10 * 1024 * 1024 }
+        { timeout: GROK_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 10 * 1024 * 1024, env: grokLockdownEnv() }
       );
       stdout = result.stdout;
     } catch (err) {

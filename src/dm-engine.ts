@@ -686,6 +686,16 @@ export async function runTurn(
     allowedTools,
     disallowedTools: ["Bash"],
     permissionMode: "dontAsk",
+    // ADR-0042: the PreToolUse gate below is the boundary, but it should not be the
+    // only thing standing between the DM and the rest of the machine. Offer only the
+    // four built-in file tools decidePermission allows (not Agent, Workflow, Cron*,
+    // RemoteTrigger, WebFetch…), start only the servers passed in `mcpServers` (not
+    // the host user's claude.ai connectors — Gmail, Drive, Vercel — or their own),
+    // and read the project's settings and CLAUDE.md as before but not the host
+    // user's personal ones (their allow-list and hooks).
+    tools: ["Read", "Write", "Edit", "Glob"],
+    strictMcpConfig: true,
+    settingSources: ["project"],
     systemPrompt: systemPrompt(campaignDir, sessionLogPath, settings, character),
     // Per ADR-0004: a fresh MCP server per turn so this campaign's toneWhimsy
     // (if set) overrides the wildcard chance without touching shared state
