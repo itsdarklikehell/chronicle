@@ -5,7 +5,16 @@ import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import path from "node:path";
 import type { DmBackend, RunTurnArgs } from "../dm-backend.js";
-import { systemPrompt, GROK_TOOL_NAMES, type TurnResult } from "../dm-engine.js";
+import { systemPrompt, GROK_TOOL_NAMES, SRD_DIR, type TurnResult } from "../dm-engine.js";
+import {
+  GROK_DISALLOWED_TOOLS,
+  GROK_DM_FILE_TOOLS,
+  GROK_MCP_GATEWAY_TOOLS,
+  dmPermissionRules,
+  grokLockdownEnv,
+  listInheritedMcpServers,
+  lockdownConfigToml,
+} from "../grok-lockdown.js";
 import { readCharacterIdentity, type CampaignSettings } from "../campaign-store.js";
 import { stripMetaChatter } from "../narration.js";
 
@@ -16,7 +25,7 @@ const execFileAsync = promisify(execFile);
 export type GrokExec = (
   file: "grok",
   args: string[],
-  options: { timeout: number; killSignal: NodeJS.Signals; maxBuffer: number }
+  options: { timeout: number; killSignal: NodeJS.Signals; maxBuffer: number; env?: NodeJS.ProcessEnv }
 ) => Promise<{ stdout: string; stderr: string }>;
 
 const defaultExec = execFileAsync as unknown as GrokExec;
@@ -40,12 +49,14 @@ const TSX_BIN = path.resolve(__dirname, "../../node_modules/.bin/tsx");
  * not env or file config) — so there's no cross-campaign bleed (ADR-0004). Only the
  * servers the settings turn on are declared, mirroring how the Claude path
  * conditionally wires dice/image per turn. */
-function writeGrokConfig(campaignDir: string, settings: CampaignSettings): void {
+async function writeGrokConfig(campaignDir: string, settings: CampaignSettings): Promise<void> {
   const grokDir = path.join(campaignDir, ".grok");
   fs.mkdirSync(grokDir, { recursive: true });
 
   const blocks: string[] = [];
+  const ownServers: string[] = [];
   const addServer = (name: string, file: string): void => {
+    ownServers.push(name);
     const serverPath = path.join(MCP_SERVERS_DIR, file);
     // campaignDir is a discrete args element (not string-concatenated) so paths
     // containing spaces stay a single argv entry.
@@ -63,7 +74,25 @@ function writeGrokConfig(campaignDir: string, settings: CampaignSettings): void 
   if (settings.autoRollDice !== false) addServer("dice", "dice-server.ts");
   if (settings.generateImages) addServer("image-tools", "image-server.ts");
 
-  fs.writeFileSync(path.join(grokDir, "config.toml"), blocks.join("\n") + "\n");
+  // ADR-0042: grok would also start whatever tool servers the host user has set up
+  // for Claude Code/Cursor; name each one `enabled = false`. `grok inspect` stops
+  // listing a server this file already disables, so ask it against a config that
+  // holds only our own servers — otherwise every second turn would forget the
+  // disable and the server would start again.
+  const configPath = path.join(grokDir, "config.toml");
+  fs.writeFileSync(configPath, blocks.join("\n") + "\n");
+  const inherited = await listInheritedMcpServers(campaignDir);
+  blocks.push(lockdownConfigToml(inherited, ownServers));
+  fs.writeFileSync(configPath, blocks.join("\n") + "\n");
+}
+
+/** The tools a DM turn may use: the file tools, plus this campaign's own MCP tools
+ * (the same ones `writeGrokConfig` declares, gated on the same settings). */
+function dmToolAllowlist(settings: CampaignSettings): string[] {
+  const tools = [...GROK_DM_FILE_TOOLS, ...GROK_MCP_GATEWAY_TOOLS, GROK_TOOL_NAMES.seed, GROK_TOOL_NAMES.texture];
+  if (settings.autoRollDice !== false) tools.push(GROK_TOOL_NAMES.dice);
+  if (settings.generateImages) tools.push(GROK_TOOL_NAMES.image);
+  return tools;
 }
 
 /** The outcome of a single grok invocation, classified so the caller can decide
@@ -97,6 +126,7 @@ async function attemptGrokTurn(
       timeout: GROK_TURN_TIMEOUT_MS,
       killSignal: "SIGKILL",
       maxBuffer: 20 * 1024 * 1024,
+      env: grokLockdownEnv(),
     });
     stdout = result.stdout;
   } catch (err) {
@@ -143,11 +173,12 @@ async function attemptGrokTurn(
   }
 }
 
-/** Grok's headless flags, finalized in the Slice 0 spike (see ADR-0018):
- * --system-prompt-override carries the full DM prompt (no 10K cap); --sandbox
- * workspace confines writes to campaignDir while allowing SRD reads and blocking
- * repo/.git writes; run_terminal_cmd removed so no shell/git; --always-approve
- * for unattended file edits. No --effort (both grok models reject it).
+/** Grok's headless flags, finalized in the Slice 0 spike (see ADR-0018) and
+ * locked down in ADR-0042: --system-prompt-override carries the full DM prompt (no
+ * 10K cap); --tools/--disallowed-tools/--permission-mode dontAsk/--allow confine it
+ * to the campaign's files (+ read-only SRD) and Chronicle's own MCP tools, with no
+ * shell and none of the host's Claude Code/Cursor config. No --effort (both grok
+ * models reject it).
  *
  * `execFn` is injectable for testing; production uses the real `grok` CLI. */
 export async function runGrokTurn(args: RunTurnArgs, execFn: GrokExec = defaultExec): Promise<TurnResult> {
@@ -155,7 +186,13 @@ export async function runGrokTurn(args: RunTurnArgs, execFn: GrokExec = defaultE
   const character = readCharacterIdentity(campaignDir);
   const sysPrompt = systemPrompt(campaignDir, sessionLogPath, settings, character, GROK_TOOL_NAMES);
 
-  writeGrokConfig(campaignDir, settings);
+  await writeGrokConfig(campaignDir, settings);
+  const tools = dmToolAllowlist(settings);
+  // MCP tools are named in the allowlist, and `dontAsk` refuses anything not allowed,
+  // so each is allowed by name too; file tools are allowed only inside the campaign
+  // (and the SRD, read-only).
+  const rules = dmPermissionRules(campaignDir, SRD_DIR);
+  const allowRules = [...rules.allow, ...tools.filter((t) => t.includes("__"))];
 
   // Reuse the persisted session on resume; otherwise mint a UUID grok will
   // create the session under, and hand it back so the server persists it.
@@ -167,12 +204,18 @@ export async function runGrokTurn(args: RunTurnArgs, execFn: GrokExec = defaultE
       "-m", model,
       "--output-format", "json",
       "--system-prompt-override", sysPrompt,
-      "--sandbox", "workspace",
-      "--disallowed-tools", "run_terminal_cmd",
-      "--always-approve",
+      // ADR-0042: an allowlist, the same tools removed by name, and refuse-by-default
+      // permissions with path-scoped allow rules. Not `--sandbox` (never applies
+      // headless) and not `--always-approve` (approved a write outside the campaign).
+      "--tools", tools.join(","),
+      "--disallowed-tools", GROK_DISALLOWED_TOOLS,
+      "--permission-mode", "dontAsk",
+      ...allowRules.flatMap((rule) => ["--allow", rule]),
+      ...rules.deny.flatMap((rule) => ["--deny", rule]),
       "--no-plan",
       "--no-subagents",
       "--disable-web-search",
+      "--no-memory",
     ];
     if (resume) a.push("--resume", resume);
     else a.push("--session-id", newSessionId);

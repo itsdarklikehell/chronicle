@@ -149,3 +149,7 @@ to the existing `isError`/502 behavior (leave the campaign at 0 turns so
 re-entering Play retries cleanly). `grok-build` stays the recommended Grok
 default — it narrates well the large majority of the time, and the retry covers
 the tail. Regression-guarded by `tests/grok-backend-retry.test.ts`.
+
+## Amendment (ADR-0042)
+
+The `--sandbox workspace` / `--always-approve` invocation described above has been replaced. The sandbox never applies headless and `run_terminal_cmd` was not the only shell tool. See [ADR-0042](0042-lock-down-grok-and-claude.md) for the current flags.

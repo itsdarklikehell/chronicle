@@ -15,6 +15,7 @@ import type { CampaignSettings } from "../campaign-store.js";
 import { sanitizeImagePrompt, mergeCharacterAppearance } from "../image-generator.js";
 import { aspectPhrase, type VideoConfig } from "../video-store.js";
 import type { VideoBackend, VideoBackendArgs, VideoGenResult } from "./types.js";
+import { disableInheritedServers, grokGenerationArgs, grokLockdownEnv } from "../grok-lockdown.js";
 
 const execFileAsync = promisify(execFile);
 export type GrokVideoExec = typeof execFileAsync;
@@ -184,6 +185,7 @@ export async function generateGrokVideo(
 
     const prompt = buildVideoPrompt(effectiveDescription, settings, video, baseImageFilename);
 
+    await disableInheritedServers(workDir);
     let stdout: string | undefined;
     let timedOut = false;
     try {
@@ -199,21 +201,13 @@ export async function generateGrokVideo(
           "--no-plan",
           "--no-subagents",
           "--disable-web-search",
-          // Defense-in-depth (same as images): forbid the tools Grok would use to
-          // explore/mutate a filesystem or repo. Read is intentionally NOT denied so
-          // it can load the staged base image.
-          "--deny",
-          "Bash",
-          "--deny",
-          "Shell",
-          "--deny",
-          "Terminal",
-          "--deny",
-          "Edit",
-          "--deny",
-          "Write",
+          // ADR-0042: the scene description is untrusted (the DM model writes it from
+          // player text), and grok is a coding agent — so remove its other tools, refuse
+          // anything not allowed, and give it none of the host's own config. `read_file`
+          // stays for the staged base image.
+          ...grokGenerationArgs(workDir, true),
         ],
-        { timeout: GROK_VIDEO_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 10 * 1024 * 1024 }
+        { timeout: GROK_VIDEO_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 10 * 1024 * 1024, env: grokLockdownEnv() }
       );
       stdout = result.stdout;
     } catch (err) {
