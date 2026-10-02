@@ -2,6 +2,12 @@
 
 # Chronicle
 
+
+[![CI](https://github.com/itsdarklikehell/chronicle/actions/workflows/ci.yml/badge.svg)](https://github.com/itsdarklikehell/chronicle/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/itsdarklikehell/chronicle)](LICENSE)
+[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md)
+
+
 **Your personal, private Dungeon Master — right on your own computer.**
 
 Chronicle is a beautiful, mobile-first solo Dungeons & Dragons app. A patient AI
